@@ -7,6 +7,7 @@ class CustomTextField extends StatelessWidget {
   final IconData? prefixIcon;
   final bool isPassword;
   final TextEditingController? controller;
+  final TextInputType? keyboardType;
 
   const CustomTextField({
     super.key,
@@ -15,6 +16,7 @@ class CustomTextField extends StatelessWidget {
     this.prefixIcon,
     this.isPassword = false,
     this.controller,
+    this.keyboardType,
   });
 
   @override
@@ -35,11 +37,12 @@ class CustomTextField extends StatelessWidget {
         TextFormField(
           controller: controller,
           obscureText: isPassword,
+          keyboardType: keyboardType,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: placeholder,
             hintStyle: TextStyle(
-              color: AppTheme.textSecondary.withOpacity(0.7),
+              color: AppTheme.textSecondary.withValues(alpha: 0.7),
             ),
             filled: true,
             fillColor: AppTheme.surfaceDark, // Using surface color for input bg

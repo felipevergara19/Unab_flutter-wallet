@@ -3,18 +3,74 @@ import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/main_navigation_scaffold.dart';
 import 'register_screen.dart';
+import '../services/api_service.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    void onLogin() {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScaffold()),
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  void _login() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor ingresa correo y contraseña')),
       );
+      return;
     }
 
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await ApiService.login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      final userId = response['user_id'];
+      final userName = response['name'];
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              MainNavigationScaffold(userId: userId, userName: userName),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Show error, strip "Exception: " prefix for cleaner UI
+      final message = e.toString().replaceAll('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
       body: SafeArea(
@@ -28,17 +84,19 @@ class LoginScreen extends StatelessWidget {
               const SizedBox(height: 48),
 
               // Middle Section: Form
-              const CustomTextField(
+              CustomTextField(
                 label: 'Correo electrónico',
                 placeholder: 'ejemplo@correo.com',
                 prefixIcon: Icons.mail_outline,
+                controller: _emailController,
               ),
               const SizedBox(height: 20),
-              const CustomTextField(
+              CustomTextField(
                 label: 'Contraseña',
                 placeholder: 'Ingresa tu contraseña',
                 prefixIcon: Icons.lock_outline,
                 isPassword: true,
+                controller: _passwordController,
               ),
 
               // Forgot Password
@@ -63,29 +121,38 @@ class LoginScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: onLogin,
+                  onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 4,
-                    shadowColor: AppTheme.primaryColor.withOpacity(0.5),
+                    shadowColor: AppTheme.primaryColor.withValues(alpha: 0.5),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Text(
-                        'Iniciar Sesión',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Text(
+                              'Iniciar Sesión',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 20),
+                          ],
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, size: 20),
-                    ],
-                  ),
                 ),
               ),
 
@@ -140,8 +207,8 @@ class LoginScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
                   colors: [
-                    AppTheme.primaryColor.withOpacity(0.5),
-                    Colors.blue.shade600.withOpacity(0.2),
+                    AppTheme.primaryColor.withValues(alpha: 0.5),
+                    Colors.blue.shade600.withValues(alpha: 0.2),
                   ],
                 ),
               ),
@@ -150,7 +217,7 @@ class LoginScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryColor.withOpacity(0.4),
+                      color: AppTheme.primaryColor.withValues(alpha: 0.4),
                       blurRadius: 20,
                       spreadRadius: 5,
                     ),

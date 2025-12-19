@@ -1,34 +1,121 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
+import '../utils/currency_formatter.dart';
+import 'add_transaction_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  final int? userId;
+  final String? userName;
+
+  const HomeScreen({super.key, this.userId, this.userName});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<List<dynamic>> _productsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  void _loadData() {
+    if (widget.userId != null) {
+      _productsFuture = ApiService.getProducts(widget.userId!);
+    } else {
+      _productsFuture = Future.value([]);
+    }
+  }
+
+  void _refreshData() {
+    setState(() {
+      _loadData();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _TopAppBar(),
-              const SizedBox(height: 16),
-              const _BalanceCard(),
-              const SizedBox(height: 16),
-              const _ActionButtons(),
-              const SizedBox(height: 16),
-              const _SpendingChartCard(),
-              const SizedBox(height: 24),
-              const _SectionHeader(
-                title: 'Actividad Reciente',
-                actionText: 'Ver Todo',
-              ),
-              const SizedBox(height: 12),
-              const _RecentTransactionsList(),
-              const SizedBox(height: 24),
-            ],
+        child: RefreshIndicator(
+          onRefresh: () async {
+            _refreshData();
+            await _productsFuture;
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: FutureBuilder<List<dynamic>>(
+              future: _productsFuture,
+              builder: (context, snapshot) {
+                // Default values while loading or if error
+                List<dynamic> products = [];
+                double totalBalance = 0.0;
+                double totalIncome = 0.0;
+                double totalExpense = 0.0;
+
+                if (snapshot.hasData) {
+                  products = snapshot.data!;
+
+                  for (var item in products) {
+                    final price = (item['price'] is int)
+                        ? (item['price'] as int).toDouble()
+                        : (item['price'] as double);
+
+                    if (item['type'] == 'income') {
+                      totalIncome += price;
+                    } else {
+                      totalExpense += price;
+                    }
+                  }
+                  totalBalance = totalIncome - totalExpense;
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _TopAppBar(userName: widget.userName),
+                    const SizedBox(height: 16),
+                    _BalanceCard(balance: totalBalance),
+                    const SizedBox(height: 16),
+                    _ActionButtons(
+                      userId: widget.userId,
+                      onTransactionAdded: _refreshData,
+                    ),
+                    const SizedBox(height: 16),
+                    _SpendingChartCard(totalSpent: totalExpense),
+                    const SizedBox(height: 24),
+                    const _SectionHeader(
+                      title: 'Actividad Reciente',
+                      actionText: 'Ver Todo',
+                    ),
+                    const SizedBox(height: 12),
+                    // Only show loading indicator for the list part if specifically waiting?
+                    // Or just show data/empty.
+                    // Since we hoist fetching, we have data or waiting here.
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      const Center(child: CircularProgressIndicator())
+                    else if (snapshot.hasError)
+                      Center(
+                        child: Text(
+                          'Error al cargar datos',
+                          style: TextStyle(color: Colors.red[300]),
+                        ),
+                      )
+                    else
+                      _RecentTransactionsList(transactions: products),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -37,7 +124,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _TopAppBar extends StatelessWidget {
-  const _TopAppBar();
+  final String? userName;
+  const _TopAppBar({this.userName});
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +134,6 @@ class _TopAppBar extends StatelessWidget {
       children: [
         Row(
           children: [
-            // User Avatar Placeholder
             Container(
               width: 48,
               height: 48,
@@ -62,7 +149,7 @@ class _TopAppBar extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              'Hola, Ana',
+              'Hola, ${userName ?? "Usuario"}',
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -72,12 +159,12 @@ class _TopAppBar extends StatelessWidget {
         Container(
           width: 48,
           height: 48,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.transparent,
           ),
           child: const Icon(
-            Icons.notifications_outlined, // Material Symbols 'notifications'
+            Icons.notifications_outlined,
             color: Colors.white,
             size: 28,
           ),
@@ -88,7 +175,8 @@ class _TopAppBar extends StatelessWidget {
 }
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard();
+  final double balance;
+  const _BalanceCard({required this.balance});
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +199,7 @@ class _BalanceCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                '\$1,234.56',
+                CurrencyFormatter.format(balance),
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -132,7 +220,10 @@ class _BalanceCard extends StatelessWidget {
 }
 
 class _ActionButtons extends StatelessWidget {
-  const _ActionButtons();
+  final int? userId;
+  final VoidCallback? onTransactionAdded;
+
+  const _ActionButtons({this.userId, this.onTransactionAdded});
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +231,25 @@ class _ActionButtons extends StatelessWidget {
       children: [
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () {
+              if (userId != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AddTransactionScreen(userId: userId!),
+                  ),
+                ).then((value) {
+                  // If true, data was added
+                  if (value == true) {
+                    onTransactionAdded?.call();
+                  }
+                });
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Error: No User ID')),
+                );
+              }
+            },
             icon: const Icon(Icons.add),
             label: const Text('Agregar Gasto'),
             style: ElevatedButton.styleFrom(
@@ -155,7 +264,21 @@ class _ActionButtons extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () {
+              if (userId != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AddTransactionScreen(userId: userId!, isIncome: true),
+                  ),
+                ).then((value) {
+                  if (value == true) {
+                    onTransactionAdded?.call();
+                  }
+                });
+              }
+            },
             icon: const Icon(Icons.add),
             label: const Text('Agregar Ingreso'),
             style: ElevatedButton.styleFrom(
@@ -173,10 +296,15 @@ class _ActionButtons extends StatelessWidget {
 }
 
 class _SpendingChartCard extends StatelessWidget {
-  const _SpendingChartCard();
+  final double totalSpent;
+  const _SpendingChartCard({required this.totalSpent});
 
   @override
   Widget build(BuildContext context) {
+    // For visualization, let's assume a dummy budget
+    const double budget = 1000.0;
+    final double percentage = (totalSpent / budget).clamp(0.0, 1.0);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -212,13 +340,13 @@ class _SpendingChartCard extends StatelessWidget {
                   alignment: Alignment.center,
                   children: [
                     CircularProgressIndicator(
-                      value: 0.75,
+                      value: percentage,
                       backgroundColor: const Color(0xFF242D47),
                       color: AppTheme.primaryColor,
                       strokeWidth: 12,
                     ),
                     Text(
-                      '75%',
+                      '${(percentage * 100).toInt()}%',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -231,13 +359,13 @@ class _SpendingChartCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '\$450.75',
+                    CurrencyFormatter.format(totalSpent),
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    'de tu presupuesto de \$600',
+                    'de tu presupuesto de ${CurrencyFormatter.format(budget)}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSecondary,
                     ),
@@ -283,36 +411,40 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _RecentTransactionsList extends StatelessWidget {
-  const _RecentTransactionsList();
+  final List<dynamic> transactions;
+
+  const _RecentTransactionsList({required this.transactions});
 
   @override
   Widget build(BuildContext context) {
+    if (transactions.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'No hay movimientos recientes',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+      );
+    }
+
     return Column(
-      children: const [
-        _TransactionItem(
-          icon: Icons.shopping_bag,
-          title: 'Supermercado',
-          date: 'Hoy',
-          amount: '-\$75.50',
-          amountColor: Colors.white,
-        ),
-        SizedBox(height: 12),
-        _TransactionItem(
-          icon: Icons.receipt_long,
-          title: 'Salario',
-          date: 'Ayer',
-          amount: '+\$1,500.00',
-          amountColor: Color(0xFF4ADE80), // text-green-400
-        ),
-        SizedBox(height: 12),
-        _TransactionItem(
-          icon: Icons.local_cafe,
-          title: 'Starbucks',
-          date: '23 de Julio',
-          amount: '-\$5.50',
-          amountColor: Colors.white,
-        ),
-      ],
+      children: transactions.map((product) {
+        final type = product['type'] ?? 'expense';
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: _TransactionItem(
+            icon: type == 'income' ? Icons.attach_money : Icons.shopping_bag,
+            title: product['name'] ?? 'Producto',
+            date: 'Hoy',
+            amount: type == 'income'
+                ? '+${CurrencyFormatter.format((product['price'] as num).toDouble())}'
+                : '-${CurrencyFormatter.format((product['price'] as num).toDouble())}',
+            amountColor: type == 'income' ? Colors.green : Colors.redAccent,
+          ),
+        );
+      }).toList(),
     );
   }
 }

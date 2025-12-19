@@ -1,9 +1,88 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
+import '../services/api_service.dart';
 
-class RegisterScreen extends StatelessWidget {
+class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
+
+  void _register() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor completa todos los campos requeridos'),
+        ),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Las contraseñas no coinciden')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await ApiService.register(name, email, password);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cuenta creada exitosamente. Inicia sesión.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Navigate back to login
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      final message = e.toString().replaceAll('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +102,8 @@ class RegisterScreen extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    AppTheme.primaryColor.withOpacity(0.1),
-                    AppTheme.backgroundDark.withOpacity(0.8),
+                    AppTheme.primaryColor.withValues(alpha: 0.1),
+                    AppTheme.backgroundDark.withValues(alpha: 0.8),
                     AppTheme.backgroundDark,
                   ],
                 ),
@@ -40,10 +119,10 @@ class RegisterScreen extends StatelessWidget {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppTheme.primaryColor.withOpacity(0.2),
+                color: AppTheme.primaryColor.withValues(alpha: 0.2),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.2),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.2),
                     blurRadius: 100,
                     spreadRadius: 50,
                   ),
@@ -99,7 +178,9 @@ class RegisterScreen extends StatelessWidget {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
@@ -150,30 +231,34 @@ class RegisterScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   // Form
-                  const CustomTextField(
+                  CustomTextField(
                     label: 'Nombre completo',
                     placeholder: 'Ej. Juan Pérez',
                     prefixIcon: Icons.person,
+                    controller: _nameController,
                   ),
                   const SizedBox(height: 16),
-                  const CustomTextField(
+                  CustomTextField(
                     label: 'Correo electrónico',
                     placeholder: 'nombre@ejemplo.com',
                     prefixIcon: Icons.mail,
+                    controller: _emailController,
                   ),
                   const SizedBox(height: 16),
-                  const CustomTextField(
+                  CustomTextField(
                     label: 'Contraseña',
                     placeholder: '••••••••',
                     prefixIcon: Icons.lock,
                     isPassword: true,
+                    controller: _passwordController,
                   ),
                   const SizedBox(height: 16),
-                  const CustomTextField(
+                  CustomTextField(
                     label: 'Confirmar contraseña',
                     placeholder: '••••••••',
                     prefixIcon: Icons.lock_reset,
                     isPassword: true,
+                    controller: _confirmPasswordController,
                   ),
 
                   const SizedBox(height: 32),
@@ -183,32 +268,40 @@ class RegisterScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Allow navigation back to login for demo flow
-                        Navigator.pop(context);
-                      },
+                      onPressed: _isLoading ? null : _register,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 4,
-                        shadowColor: AppTheme.primaryColor.withOpacity(0.5),
+                        shadowColor: AppTheme.primaryColor.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Text(
-                            'Registrarse',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Text(
+                                  'Registrarse',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(Icons.arrow_forward, size: 20),
+                              ],
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward, size: 20),
-                        ],
-                      ),
                     ),
                   ),
 

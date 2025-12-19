@@ -6,7 +6,10 @@ import '../screens/budgets_screen.dart';
 import '../screens/settings_screen.dart';
 
 class MainNavigationScaffold extends StatefulWidget {
-  const MainNavigationScaffold({super.key});
+  final int? userId;
+  final String? userName;
+
+  const MainNavigationScaffold({super.key, this.userId, this.userName});
 
   @override
   State<MainNavigationScaffold> createState() => _MainNavigationScaffoldState();
@@ -15,12 +18,18 @@ class MainNavigationScaffold extends StatefulWidget {
 class _MainNavigationScaffoldState extends State<MainNavigationScaffold> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const TransactionsScreen(),
-    const BudgetsScreen(),
-    const SettingsScreen(),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(userId: widget.userId, userName: widget.userName),
+      TransactionsScreen(userId: widget.userId),
+      const BudgetsScreen(),
+      SettingsScreen(userName: widget.userName),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +37,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold> {
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: AppTheme.backgroundDark.withOpacity(0.9),
+          color: AppTheme.backgroundDark.withValues(alpha: 0.9),
           border: const Border(top: BorderSide(color: Color(0xFF242D47))),
         ),
         child: BottomNavigationBar(

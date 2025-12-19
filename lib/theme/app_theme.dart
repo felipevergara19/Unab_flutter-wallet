@@ -16,7 +16,6 @@ class AppTheme {
       scaffoldBackgroundColor: backgroundDark,
       colorScheme: const ColorScheme.dark(
         primary: primaryColor,
-        background: backgroundDark,
         surface: surfaceDark,
         onSurface: Colors.white,
       ),
